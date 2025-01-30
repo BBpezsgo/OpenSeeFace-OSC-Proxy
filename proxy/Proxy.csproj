@@ -11,8 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../SharpOSC/SharpOSC/SharpOSC.csproj" />
-    <ProjectReference Include="../Win32-Stuff/Win32.csproj" />
+    <ProjectReference Include="../../SharpOSC/SharpOSC/SharpOSC.csproj" />
+    <ProjectReference Include="../../Win32-Stuff/Win32.csproj" />
   </ItemGroup>
 
 </Project>

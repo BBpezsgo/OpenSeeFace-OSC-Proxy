@@ -1,0 +1,3 @@
+https://github.com/REWTAO/Facial-emotion-recognition-using-mediapipe
+https://github.com/amitt1236/Gaze_estimation
+https://github.com/noorkhokhar99/MediaPipe-Iris
