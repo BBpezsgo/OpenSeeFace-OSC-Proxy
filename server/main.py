@@ -6,6 +6,9 @@ import struct
 import time
 
 import gaze
+from face_mesh.face_mesh import calc_landmarks, calc_around_eye_bbox
+from iris_landmark.iris_landmark import IrisLandmark
+from iris import detect_iris, calc_min_enc_losingCircle
 
 VISUALIZE = False
 SOCK_PATH = "/tmp/CoreFxPipe_mySocket"
@@ -18,6 +21,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
     sock.bind(SOCK_PATH)
 
     mp_face_mesh = mp.solutions.face_mesh
+    iris_detector = IrisLandmark()
 
     cap = cv2.VideoCapture(0)
 
@@ -42,6 +46,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                             continue
 
                         height, width, _ = image.shape
+                        image = cv2.flip(image, 1) # mirror display
                         image.flags.writeable = False
                         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                         results = face_mesh.process(image)
@@ -68,10 +73,29 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                             #     packet.extend(bytearray(struct.pack("f", gaze_result[1][0])))
                             #     packet.extend(bytearray(struct.pack("f", gaze_result[1][1])))
                             # else:
-                                packet.extend(bytearray(struct.pack("f", 0)))
-                                packet.extend(bytearray(struct.pack("f", 0)))
-                                packet.extend(bytearray(struct.pack("f", 0)))
-                                packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+
+                            face_result = calc_landmarks(image, results.multi_face_landmarks[0].landmark)
+                            # Calculate bounding box around eyes
+                            left_eye, right_eye = calc_around_eye_bbox(face_result)
+
+                            # Iris detection
+                            left_iris, right_iris = detect_iris(image, iris_detector, left_eye, right_eye)
+
+                            # Calculate the circumcircle of the iris
+                            left_center, left_radius = calc_min_enc_losingCircle(left_iris)
+                            right_center, right_radius = calc_min_enc_losingCircle(right_iris)
+
+                            packet.extend(bytearray(struct.pack('f', float(left_center[0]) / float(width))))
+                            packet.extend(bytearray(struct.pack('f', float(left_center[1]) / float(height))))
+                            packet.extend(bytearray(struct.pack('f', float(left_radius))))
+
+                            packet.extend(bytearray(struct.pack('f', float(right_center[0]) / float(width))))
+                            packet.extend(bytearray(struct.pack('f', float(right_center[1]) / float(height))))
+                            packet.extend(bytearray(struct.pack('f', float(right_radius))))
 
                         conn.sendall(packet)
 

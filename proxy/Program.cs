@@ -27,7 +27,7 @@ static class Program
     static Vector2 Lerp(Vector2 a, Vector2 b, float t) => (a * (1f - t)) + (b * t);
     static Vector3 Lerp(Vector3 a, Vector3 b, float t) => (a * (1f - t)) + (b * t);
 
-    public static void CoolerLine(this AnsiRenderer renderer, Coord a, Coord b, AnsiColor color)
+    static void CoolerLine(this AnsiRenderer renderer, Coord a, Coord b, AnsiColor color)
     {
         a.Y *= 2;
         b.Y *= 2;
@@ -94,7 +94,7 @@ static class Program
                     if (sy > 0) _y = y + sy;
                     else _y = -1;
                 }
-                else 
+                else
                 {
                     c = '▄';
                     if (sy < 0) _y = y + sy;
@@ -111,6 +111,54 @@ static class Program
                 {
                     x += sx;
                     r -= dy;
+                }
+            }
+        }
+    }
+    static void Sphere(this AnsiRenderer renderer, Coord c, int r, AnsiColor color)
+    {
+        int hr = r / 2 + 1;
+
+        Coord min = new(Math.Max(0, c.X - hr), Math.Max(0, c.Y - hr));
+        Coord max = new(Math.Min(renderer.Width - 1, c.X + hr), Math.Min(renderer.Height - 1, c.Y + hr));
+
+        min *= 2;
+        max *= 4;
+
+        c.X *= 2;
+        c.Y *= 4;
+
+        const string Barille = "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿⢀⢁⢂⢃⢄⢅⢆⢇⢈⢉⢊⢋⢌⢍⢎⢏⢐⢑⢒⢓⢔⢕⢖⢗⢘⢙⢚⢛⢜⢝⢞⢟⢠⢡⢢⢣⢤⢥⢦⢧⢨⢩⢪⢫⢬⢭⢮⢯⢰⢱⢲⢳⢴⢵⢶⢷⢸⢹⢺⢻⢼⢽⢾⢿⣀⣁⣂⣃⣄⣅⣆⣇⣈⣉⣊⣋⣌⣍⣎⣏⣐⣑⣒⣓⣔⣕⣖⣗⣘⣙⣚⣛⣜⣝⣞⣟⣠⣡⣢⣣⣤⣥⣦⣧⣨⣩⣪⣫⣬⣭⣮⣯⣰⣱⣲⣳⣴⣵⣶⣷⣸⣹⣺⣻⣼⣽⣾⣿";
+
+        for (int y = min.Y; y <= max.Y; y++)
+        {
+            for (int x = min.X; x <= max.X; x++)
+            {
+                int dx = x - c.X;
+                int dy = y - c.Y;
+                if (dx * dx + dy * dy < hr * hr)
+                {
+                    char chr = (x % 2, y % 4) switch
+                    {
+                        (0, 0) =>  '⠁',
+                        (0, 1) =>  '⠂',
+                        (0, 2) =>  '⠄',
+                        (0, 3) =>  '⡀',
+                        (1, 0) =>  '⠈',
+                        (1, 1) =>  '⠐',
+                        (1, 2) =>  '⠠',
+                        (1, 3) =>  '⢀',
+                        _ =>       '⠀',
+                    };
+                    if (renderer[x / 2, y / 4].Char >= Barille[0] &&
+                        renderer[x / 2, y / 4].Char <= Barille[^1])
+                    {
+                        renderer[x / 2, y / 4].Char |= chr;
+                    }
+                    else
+                    {
+                        renderer[x / 2, y / 4] = new AnsiChar(chr, (byte)color);
+                    }
                 }
             }
         }
@@ -140,14 +188,14 @@ static class Program
         Smooth<Vector3> lerpedHeadForward = new(Lerp, new Vector3(0f, 0f, 1f));
         Dirty<Vector3> dirtyFaceForward = new((a, b) => Vector3.Distance(a, b) > 0.01f, new Vector3(0f, 0f, 1f));
 
-        using FaceDataReceiver bruhReceiver = new();
-        bruhReceiver.Start();
+        using FaceDataReceiver faceDataReceiver = new();
+        faceDataReceiver.Start();
 
         while (true)
         {
             Thread.Sleep(50);
 
-            if (bruhReceiver.CurrentFace.Time == default) continue;
+            if (faceDataReceiver.CurrentFace.Time == default) continue;
 
             if (Render) renderer.Clear();
 
@@ -160,17 +208,14 @@ static class Program
             // {
             //     for (int i = 0; i < 468; i++)
             //     {
-            //         Vector2 p = new Vector2(bruhReceiver.CurrentFace.Points[i].X, bruhReceiver.CurrentFace.Points[i].Y).Transform(bruhReceiver.CurrentFace, renderer);
-            // 
-            //         DrawPoint(p);
-            //         renderer.Text(p, $"{i}");
+            //         DrawPoint(new Vector2(bruhReceiver.CurrentFace.Points[i].X, bruhReceiver.CurrentFace.Points[i].Y).Transform(bruhReceiver.CurrentFace, renderer));
             //     }
             // }
 
-            var pFrom = (bruhReceiver.CurrentFace.Points[162] + bruhReceiver.CurrentFace.Points[389]) / 2f;
-            var pTo = bruhReceiver.CurrentFace.Points[9];
+            var pFrom = (faceDataReceiver.CurrentFace.Points[162] + faceDataReceiver.CurrentFace.Points[389]) / 2f;
+            var pTo = faceDataReceiver.CurrentFace.Points[9];
             var headForward = Vector3.Normalize(pFrom - pTo);
-            // var headCenter = pTo.Transform(bruhReceiver.CurrentFace, renderer);
+            // var headCenter = pTo.Transform(faceDataReceiver.CurrentFace, renderer);
             var headCenter = new Coord(renderer.Width / 2, renderer.Height / 2);
 
             headForward.Z = headForward.Z / 2f; // MathF.Sqrt(MathF.Abs(headForward.Z)) * MathF.Sign(headForward.Z);
@@ -183,11 +228,14 @@ static class Program
 
             if (Render)
             {
-                DrawPoint(headCenter + (new Vector2(lerpedHeadForward.Value.X, lerpedHeadForward.Value.Y) * lerpedHeadForward.Value.Z * new Vector2(renderer.Width, renderer.Height)), AnsiColor.Red);
+                DrawPoint(headCenter + (new Vector2(-lerpedHeadForward.Value.X, -lerpedHeadForward.Value.Y) * lerpedHeadForward.Value.Z * new Vector2(renderer.Width, renderer.Height)), AnsiColor.Red);
                 // CoolerLine(renderer,
                 //     (Coord)headCenter,
-                //     (Coord)(headCenter + (new Vector2(headForward.X * 6f, headForward.Y * 1.3f) * headForward.Z * 50f)),
+                //     (Coord)(headCenter + (new Vector2(-lerpedHeadForward.Value.X, -lerpedHeadForward.Value.Y) * lerpedHeadForward.Value.Z * new Vector2(renderer.Width, renderer.Height))),
                 //     AnsiColor.Red);
+
+                // renderer.Sphere((Coord)(new Vector2(bruhReceiver.CurrentFace.LeftEyeCenter.X, bruhReceiver.CurrentFace.LeftEyeCenter.Y) * new Vector2(renderer.Width, renderer.Height)), (int)bruhReceiver.CurrentFace.LeftEyeRadius, AnsiColor.Green);
+                // renderer.Sphere((Coord)(new Vector2(bruhReceiver.CurrentFace.RightEyeCenter.X, bruhReceiver.CurrentFace.RightEyeCenter.Y) * new Vector2(renderer.Width, renderer.Height)), (int)bruhReceiver.CurrentFace.RightEyeRadius, AnsiColor.Yellow);
             }
 
             if (dirtyFaceForward.IsDirty)

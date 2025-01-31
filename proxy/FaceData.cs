@@ -21,4 +21,8 @@ public readonly struct FaceData
     public readonly Buffer468<Vector3> Points;
     public readonly Vector2 LeftGaze;
     public readonly Vector2 RightGaze;
+    public readonly Vector2 LeftEyeCenter;
+    public readonly float LeftEyeRadius;
+    public readonly Vector2 RightEyeCenter;
+    public readonly float RightEyeRadius;
 }

@@ -7,7 +7,7 @@ import cv2 as cv
 import numpy as np
 import mediapipe as mp
 
-from face_mesh.face_mesh import FaceMesh
+from face_mesh.face_mesh import calc_landmarks, calc_around_eye_bbox
 from iris_landmark.iris_landmark import IrisLandmark
 
 
@@ -51,12 +51,14 @@ def main():
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
     # Model load ################################################ ###############
-    face_mesh = FaceMesh(
-        max_num_faces,
-        min_detection_confidence,
-        min_tracking_confidence,
-    )
     iris_detector = IrisLandmark()
+    mp_face_mesh = mp.solutions.face_mesh
+    face_mesh = mp_face_mesh.FaceMesh(
+        max_num_faces=max_num_faces,
+        min_detection_confidence=min_detection_confidence,
+        min_tracking_confidence=min_tracking_confidence,
+        refine_landmarks=True
+    )
 
     # FPS Measurement Module ############################################### ##########
 
@@ -65,61 +67,38 @@ def main():
         ret, image = cap.read()
         if not ret:
             break
+        height, width, _ = image.shape
         image = cv.flip(image, 1) # mirror display
-        debug_image = copy.deepcopy(image)
 
         # Detection ################################################ ###############
-
-        height, width, _ = image.shape
-
-        result = mp.solutions.face_mesh.FaceMesh().process(cv.cvtColor(image, cv.COLOR_BGR2RGB))
-        if result.multi_face_landmarks:
-            for facial_landmark in result.multi_face_landmarks:
-                for i in range(0, 468):
-                    x = int(facial_landmark.landmark[i].x * width)
-                    y = int(facial_landmark.landmark[i].y * height)
-                    cv.circle(debug_image, (x, y), 2, (100, 100, 0), -1)
-
         # Face Mesh detection
-        face_results = face_mesh(image)
-        for face_result in face_results:
-            # Calculate bounding box around eyes
-            left_eye, right_eye = face_mesh.calc_around_eye_bbox(face_result)
+    
+        # 推論
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = face_mesh.process(image)
 
-            # Iris detection
-            left_iris, right_iris = detect_iris(image, iris_detector, left_eye,
-                                                right_eye)
+        # X,Y座標を相対座標から絶対座標に変換
+        # [X座標, Y座標, Z座標, Visibility, Presence]のリストに変更
+        if results.multi_face_landmarks is not None:
+            for face_landmarks in results.multi_face_landmarks:
+                face_result = calc_landmarks(image, face_landmarks.landmark)
+                # Calculate bounding box around eyes
+                left_eye, right_eye = calc_around_eye_bbox(face_result)
 
-            # Calculate the circumcircle of the iris
-            left_center, left_radius = calc_min_enc_losingCircle(left_iris)
-            right_center, right_radius = calc_min_enc_losingCircle(right_iris)
+                # Iris detection
+                left_iris, right_iris = detect_iris(image, iris_detector, left_eye, right_eye)
 
-            # debug drawing
-            debug_image = draw_debug_image(
-                debug_image,
-                left_iris,
-                right_iris,
-                left_center,
-                left_radius,
-                right_center,
-                right_radius,
-            )
-
-        # Key processing (ESC: end) ############################################ #######
-        key = cv.waitKey(1)
-        if key == 27:  # ESC
-            break
-
-        # Screen reflection ################################################# ###############
-        cv.imshow('Iris(tflite) Demo', debug_image)
+                # Calculate the circumcircle of the iris
+                left_center, left_radius = calc_min_enc_losingCircle(left_iris)
+                right_center, right_radius = calc_min_enc_losingCircle(right_iris)
 
     cap.release()
-    cv.destroyAllWindows()
 
     return
 
 
-def detect_iris(image, iris_detector, left_eye, right_eye):
+def detect_iris(image: cv.typing.MatLike, iris_detector: IrisLandmark, left_eye: list[int], right_eye: list[int]):
     image_width, image_height = image.shape[1], image.shape[0]
     input_shape = iris_detector.get_input_shape()
 
@@ -152,13 +131,11 @@ def detect_iris(image, iris_detector, left_eye, right_eye):
     return left_iris, right_iris
 
 
-def calc_iris_point(eye_bbox, eye_contour, iris, input_shape):
-    iris_list = []
+def calc_iris_point(eye_bbox: list[int], eye_contour, iris, input_shape: tuple[int, int]):
+    iris_list: list[tuple[int, int]] = []
     for index in range(5):
-        point_x = int(iris[index * 3] *
-                      ((eye_bbox[2] - eye_bbox[0]) / input_shape[0]))
-        point_y = int(iris[index * 3 + 1] *
-                      ((eye_bbox[3] - eye_bbox[1]) / input_shape[1]))
+        point_x = int(iris[index * 3] * ((eye_bbox[2] - eye_bbox[0]) / input_shape[0]))
+        point_y = int(iris[index * 3 + 1] * ((eye_bbox[3] - eye_bbox[1]) / input_shape[1]))
         point_x += eye_bbox[0]
         point_y += eye_bbox[1]
 
@@ -167,45 +144,12 @@ def calc_iris_point(eye_bbox, eye_contour, iris, input_shape):
     return iris_list
 
 
-def calc_min_enc_losingCircle(landmark_list):
+def calc_min_enc_losingCircle(landmark_list: list[tuple[int, int]]):
     center, radius = cv.minEnclosingCircle(np.array(landmark_list))
     center = (int(center[0]), int(center[1]))
     radius = int(radius)
 
     return center, radius
-
-
-def draw_debug_image(
-    debug_image,
-    left_iris,
-    right_iris,
-    left_center,
-    left_radius,
-    right_center,
-    right_radius,
-):
-    # Rainbow: circumscribed yen
-    cv.circle(debug_image, left_center, left_radius, (0, 255, 0), 2)
-    cv.circle(debug_image, right_center, right_radius, (0, 255, 0), 2)
-
-    # iris: landmark
-    for point in left_iris:
-        cv.circle(debug_image, (point[0], point[1]), 1, (0, 0, 255), 2)
-    for point in right_iris:
-        cv.circle(debug_image, (point[0], point[1]), 1, (0, 0, 255), 2)
-
-    # iridescence: radius
-    cv.putText(debug_image, 'r:' + str(left_radius) + 'px',
-               (left_center[0] + int(left_radius * 1.5),
-                left_center[1] + int(left_radius * 0.5)),
-               cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
-    cv.putText(debug_image, 'r:' + str(right_radius) + 'px',
-               (right_center[0] + int(right_radius * 1.5),
-                right_center[1] + int(right_radius * 0.5)),
-               cv.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
-
-    return debug_image
-
 
 if __name__ == '__main__':
     main()

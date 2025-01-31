@@ -8,8 +8,8 @@ import tensorflow as tf
 class IrisLandmark(object):
     def __init__(
         self,
-        model_path='iris_landmark/iris_landmark.tflite',
-        num_threads=1,
+        model_path: str = '/home/BB/Projects/OpenSeeFace-OSC-Proxy/server/iris_landmark/iris_landmark.tflite',
+        num_threads: int = 1,
     ):
         self._interpreter = tf.lite.Interpreter(model_path=model_path,
                                                 num_threads=num_threads)
@@ -19,7 +19,7 @@ class IrisLandmark(object):
 
     def __call__(
         self,
-        image,
+        image: cv.typing.MatLike,
     ):
         input_shape = self._input_details[0]['shape']
 
@@ -50,6 +50,6 @@ class IrisLandmark(object):
 
         return np.squeeze(eye_contour), np.squeeze(iris)
 
-    def get_input_shape(self):
+    def get_input_shape(self) -> tuple[int, int]:
         input_shape = self._input_details[0]['shape']
         return [input_shape[1], input_shape[2]]
