@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
 
+namespace VRChatProxy;
+
 static class UdpClientExtensions
 {
     public static int Receive(this UdpClient client, byte[] buffer, int size, ref EndPoint remoteEP)

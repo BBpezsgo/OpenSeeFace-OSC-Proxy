@@ -1,21 +1,25 @@
-public struct Dirty<T>(Func<T, T, bool> threshold, T value) where T : notnull
-{
-    T _value = value;
-    bool _isDirty = true;
-    readonly Func<T, T, bool> threshold = threshold;
+namespace VRChatProxy;
 
-    public T Value
+public struct Dirty<T> where T : notnull
+{
+    readonly Func<T, T, bool> _threshold;
+    T _value;
+
+    public readonly T Value => _value;
+
+    public Dirty(Func<T, T, bool> threshold, T defaultValue)
     {
-        readonly get => _value;
-        set
-        {
-            if (threshold.Invoke(_value, value))
-            {
-                _value = value;
-                _isDirty = true;
-            }
-        }
+        _threshold = threshold;
+        _value = defaultValue;
     }
 
-    public bool IsDirty { readonly get => _isDirty; set => _isDirty = value; }
+    public bool TryChange(T value)
+    {
+        if (_threshold.Invoke(_value, value))
+        {
+            _value = value;
+            return true;
+        }
+        return false;
+    }
 }

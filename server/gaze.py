@@ -4,7 +4,7 @@ import numpy as np
 relative = lambda landmark, shape: (int(landmark.x * shape[1]), int(landmark.y * shape[0]))
 relativeT = lambda landmark, shape: (int(landmark.x * shape[1]), int(landmark.y * shape[0]), 0)
 
-def gaze(frame, points):
+def gaze(frame: cv2.typing.MatLike, points) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """
     The gaze function gets an image and face landmarks from mediapipe framework.
     The function draws the gaze direction into the frame.
@@ -92,12 +92,12 @@ def gaze(frame, points):
                                            rotation_vector,
                                            translation_vector, camera_matrix, dist_coeffs)
         # correct gaze for head rotation
-        gaze = left_pupil + (eye_pupil2D[0][0] - left_pupil) - (head_pose[0][0] - left_pupil)
+        gaze = left_pupil + (eye_pupil2D[0][0] - left_pupil)
 
         # Draw gaze line into screen
-        p1 = (int(left_pupil[0]), int(left_pupil[1]))
-        p2 = (int(gaze[0]), int(gaze[1]))
-        cv2.line(frame, p1, p2, (0, 0, 255), 2)
+        # p1 = (int(left_pupil[0]), int(left_pupil[1]))
+        # p2 = (int(gaze[0]), int(gaze[1]))
+        # cv2.line(frame, p1, p2, (0, 0, 255), 2)
 
         return (gaze, gaze)
     return None

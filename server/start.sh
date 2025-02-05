@@ -1,0 +1,1 @@
+~/.pyenv/versions/3.10.16/bin/python main.py

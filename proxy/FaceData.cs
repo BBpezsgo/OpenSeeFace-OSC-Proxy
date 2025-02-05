@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
+namespace VRChatProxy;
+
 [InlineArray(468)]
 public struct Buffer468<T>
 {
@@ -25,4 +27,5 @@ public readonly struct FaceData
     public readonly float LeftEyeRadius;
     public readonly Vector2 RightEyeCenter;
     public readonly float RightEyeRadius;
+    public readonly int Expression;
 }

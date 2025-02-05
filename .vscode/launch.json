@@ -5,7 +5,7 @@
             "name": "Launch Proxy",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/proxy/OpenSeeFace-OSC-Proxy.csproj"
+            "projectPath": "${workspaceFolder}/proxy/Proxy.csproj"
         },
         {
             "name": "Launch Server",
