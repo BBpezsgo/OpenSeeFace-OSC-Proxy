@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../SharpOSC/SharpOSC/SharpOSC.csproj" />
-    <ProjectReference Include="../../Win32-Stuff/Win32.csproj" />
+    <ProjectReference Include="../../Console.UI/Console.UI.csproj" />
   </ItemGroup>
 
 </Project>

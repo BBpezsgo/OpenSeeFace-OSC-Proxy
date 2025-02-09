@@ -1,9 +1,8 @@
-﻿using System.Numerics;
-using Win32.Console;
-using Win32;
 using SharpOSC;
-using OpenSee;
 using System.Collections.Immutable;
+using System.Numerics;
+using CLI;
+using Maths;
 
 namespace VRChatProxy;
 
@@ -36,12 +35,14 @@ static class Program
 
         ImmutableArray<string> expressionLabels = File.ReadAllLines("/home/BB/Projects/OpenSeeFace-OSC-Proxy/server/model/keypoint_classifier/keypoint_classifier_label.csv").ToImmutableArray();
 
-        AnsiRenderer renderer = new();
+        AnsiRendererExtended renderer = new();
 
         Vector3 lerpedHeadForward = new(0f, 0f, 1f);
         Dirty<Vector3> dirtyFaceForward = new((a, b) => Vector3.Distance(a, b) > 0.01f, new Vector3(0f, 0f, 1f));
 
         double prevTime = 1d;
+
+        KalmanFilter k = new();
 
         while (true)
         {
@@ -56,19 +57,21 @@ static class Program
 
             void DrawPoint(Vector2 p, AnsiColor color = AnsiColor.White)
             {
-                renderer[new Vector2(Math.Clamp(p.X, 0f, renderer.Width - 1f), Math.Clamp(p.Y, 0f, renderer.Height - 1f))] = new AnsiChar('.', (byte)color);
+                renderer[new Vector2(Math.Clamp(p.X, 0f, renderer.Width - 1f), Math.Clamp(p.Y, 0f, renderer.Height - 1f))] = new AnsiChar('.', color);
             }
 
             // if (faceDataReceiver.CurrentFace.Expression != -1) Console.WriteLine(expressionLabels[faceDataReceiver.CurrentFace.Expression]);
 
-            if (Render)
-            {
-                for (int i = 0; i < 468; i++)
-                {
-                    var p = new Vector2(faceDataReceiver.CurrentFace.Points[i].X, faceDataReceiver.CurrentFace.Points[i].Y) * resolution;
-                    DrawPoint(p);
-                }
-            }
+            // if (Render)
+            // {
+            //     for (int i = 0; i < 468; i++)
+            //     {
+            //         var p = new Vector2(faceDataReceiver.CurrentFace.Points[i].X, faceDataReceiver.CurrentFace.Points[i].Y) * resolution;
+            //         DrawPoint(p);
+            //     }
+            // }
+
+            var headCenter = new Vector2Int(renderer.Width / 2, renderer.Height / 2);
 
             const int HEAD_UP = 10;
             const int HEAD_DOWN = 152;
@@ -79,29 +82,34 @@ static class Program
             var headRight = Vector3.Normalize(faceDataReceiver.CurrentFace.Points[HEAD_RIGHT] - faceDataReceiver.CurrentFace.Points[HEAD_LEFT]);
             var headForward = Vector3.Normalize(Vector3.Cross(headUp, headRight));
 
-            // var pFrom = (faceDataReceiver.CurrentFace.Points[162] + faceDataReceiver.CurrentFace.Points[389]) / 2f;
-            // var pTo = faceDataReceiver.CurrentFace.Points[9];
-            // var headForward = Vector3.Normalize(pFrom - pTo);
-            // var headCenter = pTo.Transform(faceDataReceiver.CurrentFace, renderer);
-            var headCenter = new Coord(renderer.Width / 2, renderer.Height / 2);
+            var correctedHeadForward = Utils.RotateVector(headForward, headRight, -0.2f);
 
-            headForward.Z = headForward.Z / 2f;
-            headForward.X = -MathF.Pow(MathF.Abs(headForward.X), 1.5f) * MathF.Sign(headForward.X);
-            headForward.Y = MathF.Pow(MathF.Abs(headForward.Y), 1.5f) * MathF.Sign(headForward.Y);
-            headForward = Vector3.Normalize(headForward);
-
-            lerpedHeadForward = Utils.Lerp(lerpedHeadForward, headForward, 0.5f);
+            lerpedHeadForward = k.Apply(correctedHeadForward);
+            if (MathF.Acos(Vector3.Dot(lerpedHeadForward, correctedHeadForward)) > 0.2f)
+            {
+                lerpedHeadForward = correctedHeadForward;
+                k = new KalmanFilter();
+            }
 
             if (Render)
             {
-                DrawPoint(headCenter + (new Vector2(lerpedHeadForward.X, -lerpedHeadForward.Y) * lerpedHeadForward.Z * resolution), AnsiColor.Red);
-                // CoolerLine(renderer,
-                //     (Coord)headCenter,
-                //     (Coord)(headCenter + (new Vector2(-lerpedHeadForward.Value.X, -lerpedHeadForward.Value.Y) * lerpedHeadForward.Value.Z * resolution)),
-                //     AnsiColor.Red);
+                AnsiRendererExtendedExtensions.LineBarille(renderer,
+                    headCenter,
+                    headCenter + (new Vector2(headForward.X, headForward.Y) * 1f / -headForward.Z * resolution),
+                    (AnsiColor)Ansi.ToAnsi256(80, 80, 80));
 
-                renderer.FillCircle((Coord)(new Vector2(faceDataReceiver.CurrentFace.LeftEyeCenter.X, faceDataReceiver.CurrentFace.LeftEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.LeftEyeRadius, AnsiColor.Green);
-                renderer.FillCircle((Coord)(new Vector2(faceDataReceiver.CurrentFace.RightEyeCenter.X, faceDataReceiver.CurrentFace.RightEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.RightEyeRadius, AnsiColor.Yellow);
+                AnsiRendererExtendedExtensions.LineBarille(renderer,
+                    headCenter,
+                    headCenter + (new Vector2(correctedHeadForward.X, correctedHeadForward.Y) * 1f / -correctedHeadForward.Z * resolution),
+                    (AnsiColor)Ansi.ToAnsi256(150, 150, 150));
+
+                AnsiRendererExtendedExtensions.LineBarille(renderer,
+                    headCenter,
+                    headCenter + (new Vector2(lerpedHeadForward.X, lerpedHeadForward.Y) * 1f / -lerpedHeadForward.Z * resolution),
+                    AnsiColor.Red);
+
+                renderer.FillCircle((Vector2Int)(new Vector2(faceDataReceiver.CurrentFace.LeftEyeCenter.X, faceDataReceiver.CurrentFace.LeftEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.LeftEyeRadius, AnsiColor.Green);
+                renderer.FillCircle((Vector2Int)(new Vector2(faceDataReceiver.CurrentFace.RightEyeCenter.X, faceDataReceiver.CurrentFace.RightEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.RightEyeRadius, AnsiColor.Yellow);
 
                 /*
                 const int RIGHT_EYE_RIGHT = 33;
@@ -128,7 +136,7 @@ static class Program
                 */
             }
 
-            avatarParameters["/tracking/eye/CenterVec"] = lerpedHeadForward;
+            avatarParameters["/tracking/eye/CenterVec"] = lerpedHeadForward * new Vector3(1f, -1f, -1f);
             avatarParameters.Sync(oscSender);
 
             if (Render)
