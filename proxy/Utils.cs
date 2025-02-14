@@ -11,8 +11,9 @@ public static class Utils
 
     public static Vector3 Slerp(Vector3 a, Vector3 b, float t)
     {
-        float theta = MathF.Acos(Vector3.Dot(a, b));
+        float theta = MathF.Acos(Math.Clamp(Vector3.Dot(a, b), 0f, 1f));
         float sinTheta = MathF.Sin(theta);
+        if (Math.Abs(sinTheta) <= float.Epsilon) return b;
         return (MathF.Sin((1f - t) * theta) / sinTheta * a) +
                (MathF.Sin(t * theta) / sinTheta * b);
     }

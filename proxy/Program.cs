@@ -40,6 +40,8 @@ static class Program
         Vector3 lerpedHeadForward = new(0f, 0f, 1f);
         Dirty<Vector3> dirtyFaceForward = new((a, b) => Vector3.Distance(a, b) > 0.01f, new Vector3(0f, 0f, 1f));
 
+        (Vector3 V, int N) average = (lerpedHeadForward, 0);
+
         double prevTime = 1d;
 
         KalmanFilter k = new();
@@ -82,31 +84,46 @@ static class Program
             var headRight = Vector3.Normalize(faceDataReceiver.CurrentFace.Points[HEAD_RIGHT] - faceDataReceiver.CurrentFace.Points[HEAD_LEFT]);
             var headForward = Vector3.Normalize(Vector3.Cross(headUp, headRight));
 
-            var correctedHeadForward = Utils.RotateVector(headForward, headRight, -0.2f);
+            Vector3 correctForward = new(0f, 0f, -1f);
+            Vector3 axis = Vector3.Cross(average.V, correctForward);
+            axis = Vector3.Normalize(axis);
+            var correctedHeadForward = float.IsNaN(axis.X) ? headForward : Utils.RotateVector(headForward, axis, -MathF.Acos(Vector3.Dot(average.V, correctForward)));
 
-            lerpedHeadForward = k.Apply(correctedHeadForward);
-            if (MathF.Acos(Vector3.Dot(lerpedHeadForward, correctedHeadForward)) > 0.2f)
+            if (MathF.Acos(Vector3.Dot(lerpedHeadForward, correctedHeadForward)) < 0.1f)
             {
-                lerpedHeadForward = correctedHeadForward;
+                lerpedHeadForward = Utils.Slerp(lerpedHeadForward, k.Apply(correctedHeadForward), 0.1f);
+            }
+            else
+            {
+                lerpedHeadForward = Utils.Slerp(lerpedHeadForward, correctedHeadForward, 0.3f);
                 k = new KalmanFilter();
             }
 
+            average.V = Utils.Slerp(average.V, headForward, 1f / ++average.N);
+
             if (Render)
             {
+                static Vector2 Project(Vector3 v) => new Vector2(v.X, v.Y) * 1f / -v.Z;
+
                 AnsiRendererExtendedExtensions.LineBarille(renderer,
                     headCenter,
-                    headCenter + (new Vector2(headForward.X, headForward.Y) * 1f / -headForward.Z * resolution),
+                    headCenter + Project(headForward) * resolution,
                     (AnsiColor)Ansi.ToAnsi256(80, 80, 80));
 
                 AnsiRendererExtendedExtensions.LineBarille(renderer,
                     headCenter,
-                    headCenter + (new Vector2(correctedHeadForward.X, correctedHeadForward.Y) * 1f / -correctedHeadForward.Z * resolution),
+                    headCenter + (Project(correctedHeadForward) * resolution),
                     (AnsiColor)Ansi.ToAnsi256(150, 150, 150));
 
                 AnsiRendererExtendedExtensions.LineBarille(renderer,
                     headCenter,
-                    headCenter + (new Vector2(lerpedHeadForward.X, lerpedHeadForward.Y) * 1f / -lerpedHeadForward.Z * resolution),
+                    headCenter + (Project(lerpedHeadForward) * resolution),
                     AnsiColor.Red);
+
+                AnsiRendererExtendedExtensions.LineBarille(renderer,
+                    headCenter,
+                    headCenter + (Project(average.V) * resolution),
+                    AnsiColor.Blue);
 
                 renderer.FillCircle((Vector2Int)(new Vector2(faceDataReceiver.CurrentFace.LeftEyeCenter.X, faceDataReceiver.CurrentFace.LeftEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.LeftEyeRadius, AnsiColor.Green);
                 renderer.FillCircle((Vector2Int)(new Vector2(faceDataReceiver.CurrentFace.RightEyeCenter.X, faceDataReceiver.CurrentFace.RightEyeCenter.Y) * resolution), (int)faceDataReceiver.CurrentFace.RightEyeRadius, AnsiColor.Yellow);
