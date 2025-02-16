@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,17 +8,11 @@ namespace VRChatProxy;
 public struct Buffer468<T>
 {
     T _element0;
-
-    [UnscopedRef]
-    public readonly ReadOnlySpan<T> AsReadOnlySpan() => MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in _element0), 468);
 }
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public readonly struct FaceData
 {
-    public readonly double Time;
-    public readonly int Width;
-    public readonly int Height;
     public readonly Buffer468<Vector3> Points;
     public readonly Vector2 LeftGaze;
     public readonly Vector2 RightGaze;
@@ -28,4 +21,10 @@ public readonly struct FaceData
     public readonly Vector2 RightEyeCenter;
     public readonly float RightEyeRadius;
     public readonly int Expression;
+}
+
+public readonly struct Face(double time, FaceData data)
+{
+    public readonly double Time = time;
+    public readonly FaceData Data = data;
 }
