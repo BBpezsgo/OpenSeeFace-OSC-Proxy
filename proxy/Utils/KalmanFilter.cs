@@ -11,6 +11,8 @@ struct KalmanFilter
     Matrix3x3 R;
     Matrix3x3 K;
 
+    public readonly Vector3 Value => x_k!.Value;
+
     public KalmanFilter()
     {
         x_k = null;

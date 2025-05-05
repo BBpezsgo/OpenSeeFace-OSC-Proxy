@@ -10,6 +10,7 @@ public class Receiver : IDisposable
     {
         Face = 1,
         Hands = 2,
+        Holistic = 3,
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -25,6 +26,7 @@ public class Receiver : IDisposable
     public Face Face;
     public Hand LeftHand;
     public Hand RightHand;
+    public Holistic Holistic;
 
     readonly Thread _thread;
     bool _shouldRun;
@@ -52,10 +54,10 @@ public class Receiver : IDisposable
         {
             while (_shouldRun)
             {
-                Console.WriteLine($"[UDP] Connecting ...");
+                Console.WriteLine($"Connecting ...");
                 listener = new NamedPipeClientStream(".", "mySocket", PipeDirection.In);
                 listener.Connect();
-                Console.WriteLine($"[UDP] Connected");
+                Console.WriteLine($"Connected");
 
                 while (_shouldRun)
                 {
@@ -143,6 +145,11 @@ public class Receiver : IDisposable
                                         RightHand = new Hand(header->Time, hand->Points);
                                     }
                                 }
+                                break;
+                        
+                            case PacketType.Holistic:
+                                HolisticData* holistic = reader.Read<HolisticData>();
+                                Holistic = new Holistic(header->Time, *holistic);
                                 break;
                         }
                     }

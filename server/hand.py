@@ -1,70 +1,80 @@
 import cv2
 import mediapipe as mp
+import socket
+import os
+import struct
+import time
 
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands()
+SOCK_PATH = "/tmp/CoreFxPipe_mySocket"
 
-screen_width = 1920
-screen_height = 1080
+print('Loading hands ...')
+hands = mp.solutions.hands.Hands()
 
+print('Capturing camera 0 ...')
 cap = cv2.VideoCapture(0)
-prev_x = None
-prev_y = None
-# initial_dist = None
-while cap.isOpened():
-    ret, frame = cap.read()
 
-    # mirror image
-    frame = cv2.flip(frame, 1)
-    frame.flags.writeable = False
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(frame)  # hand landmarks detect krne ko
-    if results.multi_hand_landmarks:  # agar hands detect hue to
-        for landmarks in results.multi_hand_landmarks:
-            # hand check krne ko
-            handedness = results.multi_handedness[results.multi_hand_landmarks.index(landmarks)].classification[0].label
+print('Creating socket ...')
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+    try:
+        os.remove(SOCK_PATH)
+    except OSError:
+        pass
+    sock.bind(SOCK_PATH)
 
-            print(handedness)
+    while True:
+        try:
+            print("Waiting for connection ...")
+            sock.listen()
+            conn, _ = sock.accept()
 
-            # draws hand landmarks and connections on the frame
-            index_tip = landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-            index_mid = landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_PIP]
+            with conn:
+                print("Client connected")
 
-            if handedness == "Left":  # left mouse
+                while cap.isOpened():
+                    success, image = cap.read()
+                    if not success:
+                        print("Ignoring empty camera frame")
+                        continue
 
-                # if initial_dist is None:
-                #     initial_dist = index_tip.y - index_mid.y
+                    height, width, _ = image.shape
 
-                mcp_x = landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].x
-                mcp_y = landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y
+                    image = cv2.flip(image, 1)
+                    image.flags.writeable = False
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-                cursor_x = int(mcp_x * screen_width)
-                cursor_y = int(mcp_y * screen_height)
+                    results = hands.process(image)
 
-                print((cursor_x, cursor_y))
+                    if not results.multi_handedness: continue
+                    if not results.multi_hand_landmarks: continue
 
-                # current_dist = index_tip.y - index_mid.y
-                if index_tip.y >= index_mid.y:
-                    print('click')
+                    numHands = len(results.multi_handedness)
+                    if numHands < 1: continue
 
-            elif handedness == "Right":  # right keyboard
-                x, y = int(index_tip.x * screen_width), int(index_tip.y * screen_height)
-                if prev_x is not None and prev_y is not None:
-                    dx = x - prev_x
-                    dy = y - prev_y
+                    packet = bytearray()
+                    packet.extend(bytearray(struct.pack("d", time.time())))
+                    packet.extend(bytearray(struct.pack("i", width)))
+                    packet.extend(bytearray(struct.pack("i", height)))
+                    packet.extend(bytearray(struct.pack("i", numHands)))
 
-                    if abs(dx) > abs(dy):
-                        if dx > 50:  # right
-                            print('right')
-                        elif dx < -50:  # left
-                            print('left')
-                    else:  # Vertical swipe
-                        if dy > 50:  # down
-                            print('down')
-                        elif dy < -50:  # up
-                            print('up')
+                    for i in range(0, numHands):
+                        packet.extend(bytearray(struct.pack("i", results.multi_handedness[i].classification[0].index)))
+                        packet.extend(bytearray(struct.pack("f", results.multi_handedness[i].classification[0].score)))
 
-                prev_x = x
-                prev_y = y
+                        for j in range(0, 21):
+                            packet.extend(bytearray(struct.pack("f", results.multi_hand_landmarks[i].landmark[j].x)))
+                            packet.extend(bytearray(struct.pack("f", results.multi_hand_landmarks[i].landmark[j].y)))
+                            packet.extend(bytearray(struct.pack("f", results.multi_hand_landmarks[i].landmark[j].z)))
+
+                    conn.sendall(packet)
+            print("Camera closed")
+            break
+
+        except BrokenPipeError:
+            print("Client disconnected")
+            pass
 
 cap.release()
+print("Camera released")
+
+sock.close()
+print("Socket closed")

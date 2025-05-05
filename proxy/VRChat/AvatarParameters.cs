@@ -76,7 +76,7 @@ public struct AvatarParameters
             OscValueComparer.Instance.Equals(value.SyncedValue, value.DesiredValue);
 
             value.SyncedValue = value.DesiredValue;
-            Console.WriteLine($"[OSC] {address} ==> {value.DesiredValue}");
+            // Console.WriteLine($"[OSC] {address} ==> {value.DesiredValue}");
             oscSender.Send(new OscMessage(address, value.DesiredValue));
         }
     }

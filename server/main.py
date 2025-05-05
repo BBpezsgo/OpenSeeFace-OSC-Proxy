@@ -16,8 +16,9 @@ SOCK_PATH = "/tmp/CoreFxPipe_mySocket"
 IRIS = False
 GAZE = False
 EXPRESSION = False
-FACE = True
+FACE = False
 HANDS = False
+HOLISTIC = True
 
 print('Loading iris ...')
 iris_detector = None if not IRIS else IrisLandmark()
@@ -42,6 +43,8 @@ if EXPRESSION:
         keypoint_classifier_labels = [
             row[0] for row in keypoint_classifier_labels
         ]
+
+holistic = mp.solutions.holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 print('Capturing camera 0 ...')
 cap = cv2.VideoCapture(0)
@@ -135,7 +138,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                                 packet.extend(bytearray(struct.pack('f', 0)))
                                 packet.extend(bytearray(struct.pack('f', 0)))
                                 packet.extend(bytearray(struct.pack('f', 0)))
-                                
+
                             if EXPRESSION:
                                 brect = expression.calc_bounding_rect(image, face_result.multi_face_landmarks[0])
                                 landmark_list = expression.calc_landmark_list(image, face_result.multi_face_landmarks[0])
@@ -168,6 +171,88 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                                     packet.extend(bytearray(struct.pack("f", hand_result.multi_hand_landmarks[i].landmark[j].x)))
                                     packet.extend(bytearray(struct.pack("f", hand_result.multi_hand_landmarks[i].landmark[j].y)))
                                     packet.extend(bytearray(struct.pack("f", hand_result.multi_hand_landmarks[i].landmark[j].z)))
+
+                            conn.sendall(packet)
+
+                    if HOLISTIC:
+                        holistic_results = holistic.process(image)
+
+                        if (holistic_results.pose_landmarks):
+                            packet = bytearray()
+                            packet.extend(bytearray(struct.pack("d", time.time())))
+                            packet.extend(bytearray(struct.pack("i", width)))
+                            packet.extend(bytearray(struct.pack("i", height)))
+                            packet.extend(bytearray(struct.pack("i", 3)))
+
+                            for i in range(0, 33):
+                                packet.extend(bytearray(struct.pack("f", holistic_results.pose_landmarks.landmark[i].x)))
+                                packet.extend(bytearray(struct.pack("f", holistic_results.pose_landmarks.landmark[i].y)))
+                                packet.extend(bytearray(struct.pack("f", holistic_results.pose_landmarks.landmark[i].z)))
+                                packet.extend(bytearray(struct.pack("f", holistic_results.pose_landmarks.landmark[i].visibility)))
+
+                            conn.sendall(packet)
+
+                        if (holistic_results.face_landmarks):
+                            packet = bytearray()
+                            packet.extend(bytearray(struct.pack("d", time.time())))
+                            packet.extend(bytearray(struct.pack("i", width)))
+                            packet.extend(bytearray(struct.pack("i", height)))
+                            packet.extend(bytearray(struct.pack("i", 1)))
+
+                            for i in range(0, 468):
+                                packet.extend(bytearray(struct.pack("f", holistic_results.face_landmarks.landmark[i].x)))
+                                packet.extend(bytearray(struct.pack("f", holistic_results.face_landmarks.landmark[i].y)))
+                                packet.extend(bytearray(struct.pack("f", holistic_results.face_landmarks.landmark[i].z)))
+
+                            packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+
+                            packet.extend(bytearray(struct.pack("f", 0)))
+                            packet.extend(bytearray(struct.pack("f", 0)))
+
+                            packet.extend(bytearray(struct.pack('f', 0)))
+                            packet.extend(bytearray(struct.pack('f', 0)))
+                            packet.extend(bytearray(struct.pack('f', 0)))
+
+                            packet.extend(bytearray(struct.pack('f', 0)))
+                            packet.extend(bytearray(struct.pack('f', 0)))
+                            packet.extend(bytearray(struct.pack('f', 0)))
+                            
+                            packet.extend(bytearray(struct.pack('i', 42)))
+
+                            conn.sendall(packet)
+
+                        if (holistic_results.left_hand_landmarks or holistic_results.right_hand_landmarks):
+
+                            packet = bytearray()
+                            packet.extend(bytearray(struct.pack("d", time.time())))
+                            packet.extend(bytearray(struct.pack("i", width)))
+                            packet.extend(bytearray(struct.pack("i", height)))
+                            packet.extend(bytearray(struct.pack("i", 2)))
+
+                            numHands = 0
+                            if (holistic_results.left_hand_landmarks): numHands += 1
+                            if (holistic_results.right_hand_landmarks): numHands += 1
+
+                            packet.extend(bytearray(struct.pack("i", numHands)))
+
+                            if (holistic_results.left_hand_landmarks):
+                                packet.extend(bytearray(struct.pack("i", 1)))
+                                packet.extend(bytearray(struct.pack("f", 1)))
+
+                                for j in range(0, 21):
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.left_hand_landmarks.landmark[j].x)))
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.left_hand_landmarks.landmark[j].y)))
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.left_hand_landmarks.landmark[j].z)))
+
+                            if (holistic_results.right_hand_landmarks):
+                                packet.extend(bytearray(struct.pack("i", 0)))
+                                packet.extend(bytearray(struct.pack("f", 1)))
+
+                                for j in range(0, 21):
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.right_hand_landmarks.landmark[j].x)))
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.right_hand_landmarks.landmark[j].y)))
+                                    packet.extend(bytearray(struct.pack("f", holistic_results.right_hand_landmarks.landmark[j].z)))
 
                             conn.sendall(packet)
 

@@ -15,4 +15,8 @@
     <ProjectReference Include="../../Console.UI/Console.UI.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Zeroconf" Version="3.7.16" />
+  </ItemGroup>
+
 </Project>
